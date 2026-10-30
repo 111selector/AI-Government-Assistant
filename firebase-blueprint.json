@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "userProfile": {
+      "title": "UserProfile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 255 },
+        "provider": { "type": "string", "enum": ["google.com", "microsoft.com", "instagram.com", "tiktok.com", "custom"] },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastLoginAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "provider"]
+    },
+    "chatMessage": {
+      "title": "ChatMessage",
+      "description": "User and AI assistant chat messages in private history",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "role": { "type": "string", "enum": ["user", "model"] },
+        "text": { "type": "string", "maxLength": 5000 },
+        "language": { "type": "string", "maxLength": 10 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "role", "text"]
+    },
+    "citizenReport": {
+      "title": "CitizenReport",
+      "description": "Public service report created by citizen",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["Submitted", "In Progress", "Resolved"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "title", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "userProfile",
+      "description": "Stores user profile"
+    },
+    "/users/{userId}/chatHistory/{messageId}": {
+      "schema": "chatMessage",
+      "description": "Stores user private chat history message"
+    },
+    "/users/{userId}/reports/{reportId}": {
+      "schema": "citizenReport",
+      "description": "Stores user citizen reports"
+    }
+  }
+}

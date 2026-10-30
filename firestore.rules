@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'provider']) &&
+        data.keys().hasOnly(['uid', 'displayName', 'email', 'provider', 'photoURL', 'createdAt', 'lastLoginAt']) &&
+        data.uid is string && data.uid == userId && data.uid == request.auth.uid &&
+        data.provider is string && data.provider.size() <= 50 &&
+        (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100)) &&
+        (!('email' in data) || (data.email is string && data.email.size() <= 255)) &&
+        (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500));
+    }
+
+    function isValidChatMessage(data, userId) {
+      return data.keys().hasAll(['id', 'userId', 'role', 'text']) &&
+        data.keys().hasOnly(['id', 'userId', 'role', 'text', 'language', 'createdAt', 'sources']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.userId is string && data.userId == userId && data.userId == request.auth.uid &&
+        (data.role == 'user' || data.role == 'model') &&
+        data.text is string && data.text.size() <= 5000 &&
+        (!('language' in data) || (data.language is string && data.language.size() <= 10));
+    }
+
+    function isValidCitizenReport(data, userId) {
+      return data.keys().hasAll(['id', 'userId', 'title', 'status']) &&
+        data.keys().hasOnly(['id', 'userId', 'title', 'category', 'status', 'createdAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.userId is string && data.userId == userId && data.userId == request.auth.uid &&
+        data.title is string && data.title.size() <= 200 &&
+        (data.status == 'Submitted' || data.status == 'In Progress' || data.status == 'Resolved') &&
+        (!('category' in data) || (data.category is string && data.category.size() <= 50));
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false; // Users cannot list other users
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(request.resource.data, userId);
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(request.resource.data, userId) &&
+        request.resource.data.uid == resource.data.uid;
+      allow delete: if false;
+
+      // Private chat history subcollection
+      match /chatHistory/{messageId} {
+        allow get: if isOwner(userId) && isValidId(messageId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(messageId) && isValidChatMessage(request.resource.data, userId);
+        allow update: if false; // Messages are immutable once written
+        allow delete: if isOwner(userId) && isValidId(messageId); // User can clear their history
+      }
+
+      // User citizen reports subcollection
+      match /reports/{reportId} {
+        allow get: if isOwner(userId) && isValidId(reportId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(reportId) && isValidCitizenReport(request.resource.data, userId);
+        allow update: if isOwner(userId) && isValidId(reportId) && isValidCitizenReport(request.resource.data, userId) &&
+          request.resource.data.userId == resource.data.userId;
+        allow delete: if isOwner(userId) && isValidId(reportId);
+      }
+    }
+  }
+}
